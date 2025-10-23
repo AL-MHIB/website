@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>عجلة الحظ</title>
+<style>
+:root{--bg:#071028;--card:#0c1a34;--accent:#22d3ee;--text:#e5eef7}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(1000px 600px at 70% -10%,#1b2a4a 0%,#0b1222 60%,#050a16 100%);color:var(--text);font-family:system-ui,Segoe UI,Arial}
+.app{width:min(1000px,95vw);display:grid;gap:18px;grid-template-columns:1fr 1fr}
+@media(max-width:900px){.app{grid-template-columns:1fr}}
+.card{background:linear-gradient(180deg,#0b1a33,#071229);border:1px solid #15203a;border-radius:14px;padding:18px;box-shadow:0 12px 36px #0008}
+h1{margin:0 0 8px;font-size:20px}
+.names{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.name-box{display:flex;align-items:center;gap:6px;background:#0c142a;border:1px solid #1f2a44;border-radius:10px;padding:6px 10px}
+.name-box input{background:transparent;border:0;outline:0;color:var(--text);font-size:15px;width:110px;text-align:center}
+.add{background:#1dd6ea;color:#06252a;border:0;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:700}
+.row{display:flex;gap:10px;margin-top:10px}
+.btn{padding:10px 14px;border:0;border-radius:10px;cursor:pointer;font-weight:700;color:#06252a;background:linear-gradient(180deg,#1dd6ea,#10a5b7)}
+.ghost{background:#0c142a;color:#e2e8f0;border:1px solid #1f2a44}
+.stat{margin-top:10px;font-weight:700}
+.stage{display:grid;place-items:center}
+#wheelBox{position:relative;width:min(520px,86vw);aspect-ratio:1/1;filter:drop-shadow(0 14px 44px #000c)}
+canvas{width:100%;height:100%;border-radius:50%;background:radial-gradient(120% 120% at 50% 50%,#0d1b3b 10%,#0a142b 55%,#081024 100%);transition:transform 5.4s cubic-bezier(.2,.95,.2,1)}
+.needle{position:absolute;left:50%;top:-2px;transform:translateX(-50%);width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;border-bottom:28px solid #f1f5f9}
+.hub{position:absolute;inset:0;margin:auto;width:22%;aspect-ratio:1/1;border-radius:50%;background:radial-gradient(circle at 40% 35%,#d6f7ff,#47cbd8);display:grid;place-items:center;color:#053640;font-weight:800;pointer-events:none}
+small.hint{color:#9fb3c8;display:block;margin-top:6px}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="card">
+    <h1>الأسماء</h1>
+    <small class="hint">النتيجة: الدور الأول يفوز "الحديدي" إن وُجد. بعد ذلك نتائج عشوائية.</small>
+    <div id="namesList" class="names"></div>
+    <button id="addBtn" class="add">إضافة اسم</button>
+
+    <div class="row">
+      <button id="build" class="btn ghost">تحديث العجلة</button>
+      <button id="spin" class="btn">دوّر</button>
+    </div>
+    <div id="status" class="stat"></div>
+  </section>
+
+  <section class="card stage">
+    <div id="wheelBox">
+      <div class="needle"></div>
+      <canvas id="wheel" width="540" height="540"></canvas>
+      <div class="hub">اضغط<br>للدوّران</div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* واجهة الخانات */
+const $ = s => document.querySelector(s);
+const namesList = $('#namesList');
+function addNameBox(val=''){
+  const box = document.createElement('div'); box.className='name-box';
+  const inp = document.createElement('input'); inp.value = val;
+  const del = document.createElement('button'); del.textContent='✕';
+  del.style.cssText="background:none;border:0;color:#f87171;cursor:pointer;font-size:14px";
+  del.onclick = () => box.remove();
+  box.append(inp, del); namesList.append(box);
+}
+['أحمد','ليلى','الحديدي','حمزة','سارة','فرات','عمر','خالد'].forEach(v=>addNameBox(v));
+$('#addBtn').onclick = ()=>addNameBox('');
+
+/* رسم العجلة */
+const c = $('#wheel'), ctx = c.getContext('2d');
+function wrapText(ctx, text, maxW, lh){
+  const words = text.split(' '); let line=''; const lines=[];
+  for(const w of words){ const t = line? line + ' ' + w : w;
+    if(ctx.measureText(t).width <= maxW) line = t; else { if(line) lines.push(line); line = w; } }
+  if(line) lines.push(line);
+  let y = -(lh*lines.length)/2 + lh/2;
+  for(const L of lines){ ctx.fillText(L,0,y); y += lh; }
+}
+function drawWheel(list){
+  const n = Math.max(1, list.length), cx = c.width/2, cy = c.height/2, r = Math.min(cx,cy)-8;
+  ctx.clearRect(0,0,c.width,c.height);
+  const a = 2*Math.PI/n;
+  for(let i=0;i<n;i++){
+    const st = i*a - Math.PI/2, en = st + a;
+    const hue = (i*360/n)|0;
+    const grad = ctx.createLinearGradient(cx+Math.cos(st)*r, cy+Math.sin(st)*r, cx+Math.cos(en)*r, cy+Math.sin(en)*r);
+    grad.addColorStop(0, `hsl(${(hue+8)%360} 82% 60%)`); grad.addColorStop(1, `hsl(${(hue+34)%360} 75% 45%)`);
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,st,en,false); ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.stroke();
+    ctx.save(); const mid = (st+en)/2;
+    ctx.translate(cx + Math.cos(mid)*r*0.64, cy + Math.sin(mid)*r*0.64);
+    ctx.rotate(mid + Math.PI/2); ctx.fillStyle = '#061529'; ctx.font = 'bold 16px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; wrapText(ctx, list[i], 124, 18); ctx.restore();
+  }
+  ctx.beginPath(); ctx.arc(cx,cy,r+3,0,2*Math.PI); ctx.lineWidth=6; ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.stroke();
+}
+
+/* تطبيع */
+function norm(s){ return s.trim().replace(/\s+/g,' ').replace(/[ـ\u064B-\u0652]/g,''); }
+function getNames(){ return [...namesList.querySelectorAll('input')].map(i=>norm(i.value)).filter(Boolean); }
+
+/* --- طمس الهدف داخل مصفوفة أرقام --- */
+/* "الحديدي" رموز الحروف مضافة +7 لإخفاءها داخل المصدرة */
+const obfTargetCodes = [1582,1611,1588,1590,1617,1590,1617]; // كل قيمة = charCode + 7
+
+function reconstructTarget(){
+  return String.fromCharCode(...obfTargetCodes.map(n=>n - 7));
+}
+
+/* اختيار الفهرس: الدور الأول -> الهدف المخفي إن وُجد، من الثاني فأبعد -> عشوائي */
+let turn = 0;
+async function pickIndex(list){
+  if(!list.length) return 0;
+  if(turn === 0){
+    const target = reconstructTarget();
+    const idx = list.findIndex(n => norm(n) === norm(target));
+    if(idx !== -1) return idx;
+  }
+  return Math.floor(Math.random() * list.length);
+}
+
+/* الدوران */
+let names = [];
+function rebuild(){ names = getNames(); turn = 0; drawWheel(names); $('#status').textContent = 'جاهز.'; c.style.transition='none'; c.style.transform='rotate(0deg)'; }
+async function spin(){
+  names = getNames();
+  if(!names.length){ $('#status').textContent = 'أضف أسماء.'; return; }
+  const idx = await pickIndex(names);
+  const n = names.length;
+  const seg = 360 / n;
+  const targetCenter = idx * seg + seg/2;
+  const baseTurns = 6 + Math.floor(Math.random()*3);
+  const finalDeg = baseTurns*360 + (360 - (targetCenter % 360));
+  c.style.transition = 'transform 5.4s cubic-bezier(.2,.95,.2,1)';
+  c.style.transform = `rotate(${finalDeg}deg)`;
+  $('#status').textContent = 'جاري الدوران...';
+  setTimeout(()=>{ $('#status').textContent = 'الفائز: ' + names[idx]; turn++; }, 5450);
+}
+
+/* أحداث */
+$('#build').onclick = rebuild;
+$('#spin').onclick = spin;
+$('#wheelBox').onclick = e => { if(e.target.tagName.toLowerCase() === 'canvas') spin(); };
+
+/* بدء */
+rebuild();
+</script>
+</body>
+</html>
