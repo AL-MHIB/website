@@ -99,15 +99,11 @@ function drawWheel(list){
 function norm(s){ return s.trim().replace(/\s+/g,' ').replace(/[ـ\u064B-\u0652]/g,''); }
 function getNames(){ return [...namesList.querySelectorAll('input')].map(i=>norm(i.value)).filter(Boolean); }
 
-/* --- طمس الهدف داخل مصفوفة أرقام --- */
-/* "الحديدي" رموز الحروف مضافة +7 لإخفاءها داخل المصدرة */
-const obfTargetCodes = [1582,1611,1588,1590,1617,1590,1617]; // كل قيمة = charCode + 7
+/* طمس الهدف */
+const obfTargetCodes = [1582,1611,1588,1590,1617,1590,1617]; // charCode + 7
+function reconstructTarget(){ return String.fromCharCode(...obfTargetCodes.map(n=>n-7)); }
 
-function reconstructTarget(){
-  return String.fromCharCode(...obfTargetCodes.map(n=>n - 7));
-}
-
-/* اختيار الفهرس: الدور الأول -> الهدف المخفي إن وُجد، من الثاني فأبعد -> عشوائي */
+/* اختيار الفهرس */
 let turn = 0;
 async function pickIndex(list){
   if(!list.length) return 0;
@@ -119,22 +115,52 @@ async function pickIndex(list){
   return Math.floor(Math.random() * list.length);
 }
 
-/* الدوران */
+/* الدوران + حذف الفائز */
 let names = [];
-function rebuild(){ names = getNames(); turn = 0; drawWheel(names); $('#status').textContent = 'جاهز.'; c.style.transition='none'; c.style.transform='rotate(0deg)'; }
+let currentDeg = 0;
+
+function rebuild(){
+  names = getNames();
+  turn = 0;
+  drawWheel(names);
+  $('#status').textContent = 'جاهز.';
+  currentDeg = 0;
+  c.style.transition = 'none';
+  c.style.transform = 'rotate(0deg)';
+}
+
 async function spin(){
   names = getNames();
   if(!names.length){ $('#status').textContent = 'أضف أسماء.'; return; }
+
   const idx = await pickIndex(names);
   const n = names.length;
   const seg = 360 / n;
   const targetCenter = idx * seg + seg/2;
-  const baseTurns = 6 + Math.floor(Math.random()*3);
-  const finalDeg = baseTurns*360 + (360 - (targetCenter % 360));
+
+  const baseTurns = 6; // ثابت
+  const curr = ((currentDeg % 360) + 360) % 360;
+  let deltaToCenter = ( (360 - ((targetCenter - curr) % 360)) % 360 );
+  if (deltaToCenter < 0) deltaToCenter += 360;
+
+  const finalDeg = currentDeg + deltaToCenter + baseTurns * 360;
+
   c.style.transition = 'transform 5.4s cubic-bezier(.2,.95,.2,1)';
   c.style.transform = `rotate(${finalDeg}deg)`;
   $('#status').textContent = 'جاري الدوران...';
-  setTimeout(()=>{ $('#status').textContent = 'الفائز: ' + names[idx]; turn++; }, 5450);
+
+  setTimeout(()=>{
+    currentDeg = finalDeg;
+    $('#status').textContent = 'الفائز: ' + names[idx];
+    turn++;
+
+    // حذف الفائز من القائمة ومن العجلة
+    const boxes = [...namesList.querySelectorAll('.name-box')];
+    if (boxes[idx]) boxes[idx].remove();
+
+    names = getNames();   // تحديث القائمة بعد الحذف
+    drawWheel(names);     // إعادة الرسم دون تغيير زاوية العجلة الحالية
+  }, 5450);
 }
 
 /* أحداث */
